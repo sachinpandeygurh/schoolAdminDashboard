@@ -1,68 +1,75 @@
-const express = require('express')
-const upload = require('../middleware/upload')
-const { uploadToCloudinary , removeFromCloudinary } = require('../../middlewares/')
-const User = require('../models/user')
-const router = new express.Router()
+const express = require('express');
+const upload = require('../middleware/upload');
+const { uploadToCloudinary, removeFromCloudinary } = require('../middleware/upload');
+const User = require('../models/user');
 
-// create a user
+const router = express.Router();
+
+// Create a user
 router.post('/create', async (req, res) => {
-    try{
-        const user = new User(req.body)
+    try {
+        const user = new User(req.body);
         await user.save();
-        res.status(201).send(user)
-    } catch(error){
-        res.status(400).send("Error in creating the user", error);
+        res.status(201).send(user);
+    } catch (error) {
+        res.status(400).send("Error creating the user: " + error.message);
     }
-})
+});
 
-// upload user image
-router.post('/image/:id' , upload.single('user Image'), async(req , res)=>{
-    try{
-        // upload Image to cloudinary 
-        const data = await uploadToCloudinary(req.file.path , "user-images")
-        // save Image Url and publiId ti the database
-        const saveImg = await User.updateOne(
-            {_id : req.params.id},
+// Upload user image
+router.post('/image/:id', upload.single('userImage'), async (req, res) => {
+    try {
+        // Upload image to Cloudinary 
+        const data = await uploadToCloudinary(req.file.path, "user-images");
+
+        // Update Image URL and publicId in the database
+        await User.updateOne(
+            { _id: req.params.id },
             {
-                $set:{
-                imageUrl:data.url,
-                publicId:data.public_id
-            }
-            }
-        )
-        res.status(200).send("user image uploaded with success")
-    } catch (error){
-        res.status(400).send(error)
-    }
-})
-
-// Delete User Image
-
-router.delete('/image/:id', async(req,res)=>{
-    try{
-        // Find user
-        let user =  await User.findOne({ _id: req.params.id });
-
-        // Find it's publicId
-        const publicId = user.publicId;
-
-        // remove it's from cloudinary 
-        await removeFromCloudinary(publicId);
-
-        //Remove it from the database
-        const deleteImg =await User.updateOne(
-            {"_id":req.params.id},
-            {
-                $set:{
-                    imageUrl:"",
-                    publicId:""
+                $set: {
+                    imageUrl: data.url,
+                    publicId: data.public_id
                 }
             }
         );
-        res.status(200).send("user image deleted successfull")
-    } catch(error){
-        res.status(400).send(error)
-    }
-})
 
-module.exports= router
+        res.status(200).send("User image uploaded successfully");
+    } catch (error) {
+        res.status(400).send("Error uploading user image: " + error.message);
+    }
+});
+
+// Delete User Image
+router.delete('/image/:id', async (req, res) => {
+    try {
+        // Find user
+        const user = await User.findOne({ _id: req.params.id });
+
+        if (!user) {
+            return res.status(404).send("User not found");
+        }
+
+        // Find user's publicId
+        const publicId = user.publicId;
+
+        // Remove image from Cloudinary 
+        await removeFromCloudinary(publicId);
+
+        // Update image URL and publicId in the database
+        await User.updateOne(
+            { "_id": req.params.id },
+            {
+                $set: {
+                    imageUrl: "",
+                    publicId: ""
+                }
+            }
+        );
+
+        res.status(200).send("User image deleted successfully");
+    } catch (error) {
+        res.status(400).send("Error deleting user image: " + error.message);
+    }
+});
+
+module.exports = router;
